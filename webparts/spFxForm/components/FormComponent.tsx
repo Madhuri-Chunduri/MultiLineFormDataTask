@@ -8,16 +8,9 @@ import "./FormComponent.sass";
 import { ISpFxFormProps } from "./ISpFxFormProps";
 import { Icon } from "office-ui-fabric-react/lib/Icon";
 import { initializeIcons } from '@uifabric/icons';
+import DragAndDrop from "./DragAndDropComponent";
 
 initializeIcons();
-const formats = ["header", "font", "size", "bold", "italic", "underline", "strike", "blockquote", "list", "bullet", "indent", "link", "image", "color"];
-const Size = Quill.import("formats/size");
-Size.whitelist = ["extra-small", "small", "medium", "large"];
-Quill.register(Size, true);
-
-const Font = Quill.import("formats/font");
-Font.whitelist = ["arial", "comic-sans", "courier-new", "georgia", "helvetica", "lucida"];
-Quill.register(Font, true);
 
 class FormComponent extends React.Component<ISpFxFormProps, any> {
   modules = {
@@ -26,13 +19,13 @@ class FormComponent extends React.Component<ISpFxFormProps, any> {
     }
   };
 
-
   private readonly inputOpenFileRef: React.RefObject<HTMLInputElement>
 
   constructor(props) {
     super(props);
     this.state = {
       title: "", description: "",
+      files: [],
       errors: { title: "*" },
       validationMessage: ""
     };
@@ -73,9 +66,12 @@ class FormComponent extends React.Component<ISpFxFormProps, any> {
       .then((data) => {
         var fileType: string = file.type;
         var description: string;
+        var finalDescription: string;
         if (fileType.substring(0, 5) == "image") {
           description = this.state.description +
             "<img src= '" + this.props.context.pageContext.web.serverRelativeUrl + url + "/" + file.name + "' /> ";
+          finalDescription = this.state.finalDescription +
+            "<a href=" + this.props.context.pageContext.web.serverRelativeUrl + url + "/" + file.name + "> " + file.name + "</a>";
         }
         else description = this.state.description +
           "<a href=" + this.props.context.pageContext.web.serverRelativeUrl + url + "/" + file.name + "> " + file.name + "</a>";
@@ -85,7 +81,16 @@ class FormComponent extends React.Component<ISpFxFormProps, any> {
         console.log("Error ", error);
         alert("Error in uploading");
       });
+  }
 
+
+  handleDrop = (files) => {
+    let fileList = this.state.files
+    for (var i = 0; i < files.length; i++) {
+      if (!files[i].name) return
+      fileList.push(files[i])
+    }
+    this.setState({ files: fileList })
   }
 
   submitDetails() {
@@ -115,11 +120,18 @@ class FormComponent extends React.Component<ISpFxFormProps, any> {
           "Title": this.state.title,
           "FormData": this.state.description
         }).then(
-          (result) => {
-            if (result.data.Id > 0) {
-              //window.location.reload();
-              this.setState({ title: "", description: "", errors: { title: "*" } });
+          async (result) => {
+            let attachments = []
+            this.state.files.forEach(file => {
+              attachments.push({
+                name: file.name,
+                content: file
+              })
             }
+            );
+            result.item.attachmentFiles.addMultiple(attachments).then(function () {
+              this.setState({ title: "", description: "", errors: { title: "*" }, files: [] });
+            });
           }
         )
     }
@@ -140,11 +152,21 @@ class FormComponent extends React.Component<ISpFxFormProps, any> {
         <div className="label">
           <p> Description </p>
         </div>
-        <CustomToolbar reference={this.inputOpenFileRef} />
-        <ReactQuill value={this.state.description} onChange={this.handleText} modules={this.modules}
-          formats={formats} />
+        <div className="quillBox">
+          <CustomToolbar reference={this.inputOpenFileRef} />
+          <ReactQuill value={this.state.description} onChange={this.handleText} modules={this.modules}
+          />
+        </div>
+        <DragAndDrop handleDrop={this.handleDrop}>
+          <div className="dropBox">
+          </div>
+        </DragAndDrop>
+        {this.state.files.length > 0 ? <h2> Uploaded files : </h2> : ""}
+        {this.state.files.map((file) =>
+          <div>{file.name}</div>
+        )}
         {/* <Linkify><TextField name="description" value={this.state.description} rows={10} /></Linkify> */}
-        <input ref={this.inputOpenFileRef} type="file" style={{ display: "none" }} onChange={this.onInsertFile.bind(this)} />
+        <input type="file" ref={this.inputOpenFileRef} style={{ display: "none" }} />
         {/* <input type="button" onClick={() => this.inputOpenFileRef.current.click()} value="Add file" /> */}
         <input type="submit" className="submitButton" value="Submit Form" onClick={this.submitDetails} />
       </div>
@@ -162,29 +184,14 @@ class CustomToolbar extends React.Component<any, any> {
   render() {
     return (
       <div id="toolbar">
-        <select className="ql-font">
-          <option value="arial" selected> Arial </option>
-          <option value="comic-sans">Comic Sans</option>
-          <option value="courier-new">Courier New</option>
-          <option value="georgia">Georgia</option>
-          <option value="helvetica">Helvetica</option>
-          <option value="lucida">Lucida</option>
-        </select>
-        <select className="ql-size">
-          <option value="extra-small">Size 1</option>
-          <option value="small">Size 2</option>
-          <option value="medium" selected> Size 3 </option>
-          <option value="large">Size 4</option>
-        </select>
-        <select className="ql-align" />
         <select className="ql-color" />
         <button className="ql-bold" />
         <button className="ql-italic" />
         <button className="ql-clean" />
         <button className="ql-link" />
-        <button className="ql-insertAttach" onClick={() => this.props.reference.current.click()}>
+        {/* <button className="ql-insertAttach" onClick={() => this.props.reference.current.click()}>
           <span><Icon iconName="Attach" /></span>
-        </button>
+        </button> */}
       </div>
     )
   }
